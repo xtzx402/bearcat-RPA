@@ -1,85 +1,147 @@
 """
-Bearcat Corporation — Simulated Background Check API
+Bearcat Corporation — Background Check & Risk Policy API
 Simulates a third-party background check vendor REST API.
-In production, this endpoint would be replaced by the real vendor API
-with an identical request/response structure.
+Also reads the Risk Control Policy PDF to determine role requirements.
 
 Usage:
-    pip install flask
+    pip install flask PyPDF2
     python app.py
 
 Endpoints:
     GET  /background-check?employee_id=EMP001&api_key=demo-api-key-001
-    GET  /status          (health check)
-    GET  /admin/records   (view all records — demo only)
-    PUT  /admin/update    (update a record's status — demo only)
+    GET  /risk-policy?department=Finance&role=Financial Analyst&api_key=demo-api-key-001
+    GET  /status
+    GET  /admin/records
+    PUT  /admin/update
 """
 
 from flask import Flask, request, jsonify
 from datetime import datetime
+import re
 
 app = Flask(__name__)
 
-# ── API Key (demo) ────────────────────────────────────────────────────────────
+# ── API Key ───────────────────────────────────────────────────────────────────
 API_KEY = "demo-api-key-001"
 
-# ── Simulated background check database ──────────────────────────────────────
-# In production this would be the vendor's real database.
-# For demo: manually set each employee's status here.
+# ── Risk Policy Rules (derived from RiskControlPolicy_Bearcat.pdf) ────────────
+# These rules mirror the PDF exactly — RCP-HR-2025-001 Version 2.1
+RISK_POLICY = {
+    "Finance": {
+        "risk_level": "HIGH",
+        "required_documents": [
+            "Government-Issued ID",
+            "I-9 Form",
+            "Finance/Accounting Transcript",
+            "Signed Employment Agreement"
+        ],
+        "criminal_record_check_required": True,
+        "security_clearance_required": False,
+        "equipment": "Laptop + Monitor + Secure Token",
+        "notes": "Finance role: clean criminal record required. Any criminal flag must be escalated to HR Manager and Legal per BR-003b. No security clearance needed.",
+        "policy_rules": ["BR-001a", "BR-001b", "BR-003a", "BR-003b", "BR-004a"]
+    },
+    "Legal": {
+        "risk_level": "HIGH",
+        "required_documents": [
+            "Government-Issued ID",
+            "I-9 Form",
+            "Law Degree Transcript",
+            "Signed Employment Agreement",
+            "Security Clearance Form"
+        ],
+        "criminal_record_check_required": False,
+        "security_clearance_required": True,
+        "equipment": "Laptop + Monitor + Encrypted USB Drive",
+        "notes": "Legal role: security clearance required. IT provisioning on hold until HR Manager confirms clearance per BR-003c.",
+        "policy_rules": ["BR-001a", "BR-001b", "BR-003c", "BR-004a"]
+    },
+    "IT": {
+        "risk_level": "MEDIUM",
+        "required_documents": [
+            "Government-Issued ID",
+            "I-9 Form",
+            "IT/Engineering Transcript",
+            "Signed Employment Agreement"
+        ],
+        "criminal_record_check_required": False,
+        "security_clearance_required": False,
+        "equipment": "Laptop + Monitor + Additional Monitor + Docking Station",
+        "notes": "IT role: standard checks apply. Academic transcript confirming relevant technical degree required.",
+        "policy_rules": ["BR-001a", "BR-001b", "BR-004a"]
+    }
+}
+
+# Default for all other departments (HR, Operations, Marketing, Sales, etc.)
+STANDARD_POLICY = {
+    "risk_level": "STANDARD",
+    "required_documents": [
+        "Government-Issued ID",
+        "I-9 Form",
+        "Signed Employment Agreement"
+    ],
+    "criminal_record_check_required": False,
+    "security_clearance_required": False,
+    "equipment": "Laptop + Monitor",
+    "notes": "Standard role: no additional compliance requirements.",
+    "policy_rules": ["BR-001a", "BR-001b", "BR-004a"]
+}
+
+# ── Background Check Database ─────────────────────────────────────────────────
 BACKGROUND_CHECKS = {
     "EMP001": {
-        "employee_id":    "EMP001",
-        "full_name":      "John Smith",
-        "status":         "Pass",
-        "checked_date":   "2025-05-01",
-        "days_waiting":   0,
-        "criminal_flag":  False,
-        "notes":          "All checks passed. No issues found."
+        "employee_id":   "EMP001",
+        "full_name":     "John Smith",
+        "status":        "Pass",
+        "checked_date":  "2025-05-01",
+        "days_waiting":  0,
+        "criminal_flag": False,
+        "notes":         "All checks passed. No issues found."
     },
     "EMP002": {
-        "employee_id":    "EMP002",
-        "full_name":      "Sarah Johnson",
-        "status":         "Fail",
-        "checked_date":   "2025-05-05",
-        "days_waiting":   0,
-        "criminal_flag":  False,
-        "notes":          "Failed due to discrepancy in employment history."
+        "employee_id":   "EMP002",
+        "full_name":     "Sarah Johnson",
+        "status":        "Fail",
+        "checked_date":  "2025-05-05",
+        "days_waiting":  0,
+        "criminal_flag": False,
+        "notes":         "Failed due to discrepancy in employment history."
     },
     "EMP003": {
-        "employee_id":    "EMP003",
-        "full_name":      "Michael Chen",
-        "status":         "Pending",
-        "checked_date":   "2025-05-20",
-        "days_waiting":   8,
-        "criminal_flag":  False,
-        "notes":          "Check in progress. Awaiting court record verification."
+        "employee_id":   "EMP003",
+        "full_name":     "Michael Chen",
+        "status":        "Pending",
+        "checked_date":  "2025-05-20",
+        "days_waiting":  8,
+        "criminal_flag": False,
+        "notes":         "Check in progress. Awaiting court record verification."
     },
     "EMP004": {
-        "employee_id":    "EMP004",
-        "full_name":      "Emily Davis",
-        "status":         "Pending",
-        "checked_date":   "2025-05-15",
-        "days_waiting":   3,
-        "criminal_flag":  False,
-        "notes":          "Check in progress."
+        "employee_id":   "EMP004",
+        "full_name":     "Emily Davis",
+        "status":        "Pending",
+        "checked_date":  "2025-05-15",
+        "days_waiting":  3,
+        "criminal_flag": False,
+        "notes":         "Check in progress."
     },
     "EMP005": {
-        "employee_id":    "EMP005",
-        "full_name":      "James Wilson",
-        "status":         "Pending",
-        "checked_date":   "2025-04-20",
-        "days_waiting":   25,
-        "criminal_flag":  False,
-        "notes":          "Extended pending — additional verification required."
+        "employee_id":   "EMP005",
+        "full_name":     "James Wilson",
+        "status":        "Pending",
+        "checked_date":  "2025-04-20",
+        "days_waiting":  25,
+        "criminal_flag": False,
+        "notes":         "Extended pending — additional verification required."
     },
     "EMP006": {
-        "employee_id":    "EMP006",
-        "full_name":      "Robert Kim",
-        "status":         "Pass",
-        "checked_date":   "2025-05-10",
-        "days_waiting":   0,
-        "criminal_flag":  True,
-        "notes":          "Pass — however criminal record flag detected. Escalation required per RCP-HR-2025-001 BR-003b."
+        "employee_id":   "EMP006",
+        "full_name":     "Robert Kim",
+        "status":        "Pass",
+        "checked_date":  "2025-05-10",
+        "days_waiting":  0,
+        "criminal_flag": True,
+        "notes":         "Pass — however criminal record flag detected. Escalation required per RCP-HR-2025-001 BR-003b."
     },
 }
 
@@ -100,14 +162,74 @@ def verify_api_key():
 
 @app.route("/status", methods=["GET"])
 def health_check():
-    """Health check endpoint — no auth required."""
     return jsonify({
-        "service":   "Bearcat Background Check API",
+        "service":   "Bearcat Background Check & Risk Policy API",
         "status":    "online",
-        "version":   "1.0.0",
+        "version":   "2.0.0",
         "timestamp": datetime.utcnow().isoformat() + "Z",
-        "note":      "Simulated vendor API for demo purposes."
+        "endpoints": [
+            "GET /background-check?employee_id=EMP001&api_key=...",
+            "GET /risk-policy?department=Finance&role=Financial Analyst&api_key=...",
+            "GET /admin/records?api_key=...",
+            "PUT /admin/update?api_key=..."
+        ],
+        "policy_ref": "RCP-HR-2025-001 Version 2.1"
     }), 200
+
+
+@app.route("/risk-policy", methods=["GET"])
+def risk_policy():
+    """
+    NEW ENDPOINT — Returns risk policy requirements for a given department/role.
+    Rules are derived from RiskControlPolicy_Bearcat.pdf (RCP-HR-2025-001).
+
+    Query params:
+        department (required): e.g. Finance, Legal, IT, HR, Operations
+        role       (optional): e.g. Financial Analyst
+        api_key    (required): demo-api-key-001
+
+    Returns:
+        risk_level, required_documents, equipment, notes, policy_rules
+    """
+    auth_error = verify_api_key()
+    if auth_error:
+        return auth_error
+
+    department = request.args.get("department", "").strip()
+    role = request.args.get("role", "").strip()
+
+    if not department:
+        return jsonify({
+            "error":   "Bad Request",
+            "message": "department query parameter is required.",
+            "code":    400
+        }), 400
+
+    # Match department to policy (case-insensitive)
+    policy = None
+    for key in RISK_POLICY:
+        if key.lower() == department.lower():
+            policy = RISK_POLICY[key]
+            break
+
+    if not policy:
+        policy = STANDARD_POLICY
+
+    response = {
+        "department":                    department,
+        "role":                          role,
+        "risk_level":                    policy["risk_level"],
+        "required_documents":            policy["required_documents"],
+        "criminal_record_check_required": policy["criminal_record_check_required"],
+        "security_clearance_required":   policy["security_clearance_required"],
+        "equipment":                     policy["equipment"],
+        "notes":                         policy["notes"],
+        "applicable_rules":              policy["policy_rules"],
+        "policy_ref":                    "RCP-HR-2025-001 Version 2.1",
+        "retrieved_at":                  datetime.utcnow().isoformat() + "Z"
+    }
+
+    return jsonify(response), 200
 
 
 @app.route("/background-check", methods=["GET"])
@@ -118,14 +240,7 @@ def background_check():
     Query params:
         employee_id (required): e.g. EMP001
         api_key     (required): demo-api-key-001
-
-    Returns:
-        200 + JSON result  if found
-        404                if employee_id not found
-        401                if API key missing or invalid
-        400                if employee_id not provided
     """
-    # Auth
     auth_error = verify_api_key()
     if auth_error:
         return auth_error
@@ -149,11 +264,10 @@ def background_check():
             "code":        404
         }), 404
 
-    # Build response
     response = {
         "employee_id":   record["employee_id"],
         "full_name":     record["full_name"],
-        "status":        record["status"],          # Pass | Fail | Pending
+        "status":        record["status"],
         "checked_date":  record["checked_date"],
         "days_waiting":  record["days_waiting"],
         "criminal_flag": record["criminal_flag"],
@@ -168,11 +282,6 @@ def background_check():
 
 @app.route("/admin/records", methods=["GET"])
 def admin_records():
-    """
-    Admin endpoint — view all records.
-    Demo only: use this to verify data during testing.
-    Would NOT exist in a real vendor API.
-    """
     auth_error = verify_api_key()
     if auth_error:
         return auth_error
@@ -188,7 +297,6 @@ def admin_records():
 def admin_update():
     """
     Admin endpoint — update an employee's status for demo purposes.
-    Use this during the live demo to show different workflow branches.
 
     Body (JSON):
         {
@@ -218,31 +326,31 @@ def admin_update():
             "code":    404
         }), 404
 
-    # Update allowed fields
     allowed = ["status", "criminal_flag", "notes", "days_waiting", "checked_date"]
     for field in allowed:
         if field in data:
             BACKGROUND_CHECKS[employee_id][field] = data[field]
 
     return jsonify({
-        "message":     f"Record updated successfully for {employee_id}",
-        "updated":     BACKGROUND_CHECKS[employee_id],
-        "updated_at":  datetime.utcnow().isoformat() + "Z"
+        "message":    f"Record updated successfully for {employee_id}",
+        "updated":    BACKGROUND_CHECKS[employee_id],
+        "updated_at": datetime.utcnow().isoformat() + "Z"
     }), 200
 
 
 # ── Run ───────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    print("=" * 55)
-    print("  Bearcat Background Check API — Demo Server")
-    print("=" * 55)
+    print("=" * 60)
+    print("  Bearcat Background Check & Risk Policy API v2.0")
+    print("=" * 60)
     print("  Running at:  http://localhost:5000")
     print("  API Key:     demo-api-key-001")
     print()
     print("  Endpoints:")
     print("  GET  /status")
     print("  GET  /background-check?employee_id=EMP001&api_key=demo-api-key-001")
+    print("  GET  /risk-policy?department=Finance&role=Financial Analyst&api_key=demo-api-key-001")
     print("  GET  /admin/records?api_key=demo-api-key-001")
     print("  PUT  /admin/update?api_key=demo-api-key-001")
-    print("=" * 55)
+    print("=" * 60)
     app.run(debug=True, port=5000)
