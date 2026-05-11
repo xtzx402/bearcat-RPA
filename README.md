@@ -71,6 +71,9 @@ The onboarding workflow follows a rule-based decision model:
 - Integration Protocols: REST APIs, OAuth-based Google Workspace integration
 
 ---
+## Demo Video
+
+https://github.com/user-attachments/assets/248ce83c-a7e4-40ea-9f0a-749c2f7596c3
 
 ## Design Highlights
 
