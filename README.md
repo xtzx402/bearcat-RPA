@@ -88,8 +88,6 @@ This project provides the official UiPath solution package format (`.uis`), allo
 4. **Configure connections**: After importing, please follow the on-screen prompts to re-authorize your own Google Sheets and Outlook 365 accounts in the **"Connections"** panel.
 5. **Run**: Click **"Run"** to start testing the automation workflow.
 
-> **Note**: The `.uis` file contains the complete project metadata and workflow logic. If you prefer to view the source code directly, you can also refer to the `.xaml` files in the `/src` folder.
-
 ---
 
 ## Design Highlights
