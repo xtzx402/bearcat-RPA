@@ -91,6 +91,7 @@ https://github.com/user-attachments/assets/248ce83c-a7e4-40ea-9f0a-749c2f7596c3
 - Email system implemented as internal Flask inbox for demonstration purposes
 - UiPath Studio Web operates under low-code constraints without direct scripting capabilities
 - Google Sheets API rate limits may introduce controlled processing delays in large datasets
+- **Simplified Rejection Handling (Best Practice Note):** The processing and sending of rejection letters are simplified in this project for demonstration. In a real-world production environment, an RPA bot should ideally not handle sensitive communications like rejection letters autonomously; it should be routed to a "Human-in-the-Loop" (HITL) process for final review and approval.
 
 ---
 
