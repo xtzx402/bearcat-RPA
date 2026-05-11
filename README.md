@@ -75,6 +75,23 @@ The onboarding workflow follows a rule-based decision model:
 
 https://github.com/user-attachments/assets/248ce83c-a7e4-40ea-9f0a-749c2f7596c3
 
+---
+## How to Import and Run
+
+This project provides the official UiPath solution package format (`.uis`), allowing you to easily import it into your own environment:
+
+1. **Download the file**: Download the `Solution.uis` file from the root directory of this repository.
+2. **Access Studio Web**: Log in to your [UiPath Automation Cloud](https://cloud.uipath.com/) account and navigate to **Studio Web**.
+3. **Import the project**:
+   - On the Projects page, click the **"Import"** button in the upper right corner.
+   - Select the downloaded `Solution.uis` file.
+4. **Configure connections**: After importing, please follow the on-screen prompts to re-authorize your own Google Sheets and Outlook 365 accounts in the **"Connections"** panel.
+5. **Run**: Click **"Run"** to start testing the automation workflow.
+
+> **Note**: The `.uis` file contains the complete project metadata and workflow logic. If you prefer to view the source code directly, you can also refer to the `.xaml` files in the `/src` folder.
+
+---
+
 ## Design Highlights
 
 - Modular workflow architecture separating orchestration, decision logic, and integration layers
