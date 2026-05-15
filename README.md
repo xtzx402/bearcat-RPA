@@ -72,7 +72,7 @@ The onboarding workflow follows a rule-based decision model:
 
 ---
 ## Demo Video
-<video controls src="asset/demo.mp4" title="Title"></video>
+[![Demo Video](assets/demo_thumbnail.png)](assets/demo.mp4)
 
 ---
 ## How to Import and Run
