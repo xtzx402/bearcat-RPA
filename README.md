@@ -72,7 +72,7 @@ The onboarding workflow follows a rule-based decision model:
 
 ---
 ## Demo Video
-[![Demo Video](assets/demo_thumbnail.png)](assets/demo.mp4)
+C:\Users\wenli\OneDrive\Desktop\RPA\Group_project\asset\demo.mp4
 
 ---
 ## How to Import and Run
