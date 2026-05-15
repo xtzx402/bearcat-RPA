@@ -72,8 +72,7 @@ The onboarding workflow follows a rule-based decision model:
 
 ---
 ## Demo Video
-
-https://github.com/user-attachments/assets/248ce83c-a7e4-40ea-9f0a-749c2f7596c3
+<video controls src="asset/demo.mp4" title="Title"></video>
 
 ---
 ## How to Import and Run
